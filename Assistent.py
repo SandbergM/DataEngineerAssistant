@@ -13,7 +13,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 import time 
-
+from openai import OpenAI
 
 if os.getenv('ANTHROPIC_API_KEY') is None:
     load_dotenv()
@@ -21,7 +21,11 @@ if os.getenv('ANTHROPIC_API_KEY') is None:
 class Assistent:
 
     def __init__(self):
-        self.__client = anthropic.Anthropic()
+
+        if os.getenv('ANTHROPIC_API_KEY') is not None:
+            self.__client = anthropic.Anthropic()
+        elif os.getenv('OPENAI_API_KEY') is not None:
+            self.__client = OpenAI()
 
 
     def __load_prompt(self, question : str ):
@@ -58,6 +62,37 @@ class Assistent:
             No specific verbosity is required for the explanation text; provide clear and concise context as needed.
         """
     
+    def __antrohic_api_call(self, prompt):
+        message = self.__client.messages.create(
+            model="claude-3-5-sonnet-20240620", # claude-3-opus-20240229
+            max_tokens=1000,
+            temperature=0,
+            system="You are a world-class Data Engineer.",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+        )
+
+        return message.content[0].text.split("```python")[1].split("```")[0]
+
+    def __openai_api_call(self, prompt):
+        
+        completion = self.__client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        return completion.choices[0].message.content.split("```python")[1].split("```")[0]
 
     def __fetch_executale_code(self, prompt):
 
@@ -70,25 +105,13 @@ class Assistent:
             print(f"Attempt {attempt + 1} of {max_retries}...")
 
             try:
-                message = self.__client.messages.create(
-                    model="claude-3-5-sonnet-20240620",
-                    max_tokens=1000,
-                    temperature=0,
-                    system="You are a world-class Data Engineer.",
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": prompt
-                                }
-                            ]
-                        }
-                    ]
-                )
 
-                return message.content[0].text.split("```python")[1].split("```")[0]
+                if os.getenv('ANTHROPIC_API_KEY') is not None:
+                    return self.__antrohic_api_call(prompt)
+                
+                if os.getenv('OPENAI_API_KEY') is not None:
+                    return self.__openai_api_call(prompt)
+                    
             
             except InternalServerError as e:
                 
