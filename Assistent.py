@@ -11,6 +11,7 @@ import pandas
 import plotly
 import statsmodels
 import gradio as gr
+import tracemalloc
 
 if os.getenv('ANTHROPIC_API_KEY') is None:
     load_dotenv()
@@ -19,7 +20,7 @@ class Assistent:
 
     def __init__(self):
 
-        self.__df = pandas.read_csv("./data/Electric_Vehicle_Population_Data.csv")
+        self.__df = pandas.read_csv("./data/Crime_Data_from_2020_to_Present.csv")
 
         if os.getenv('ANTHROPIC_API_KEY') is not None:
             self.__client = anthropic.Anthropic()
@@ -65,6 +66,7 @@ These are the only imports allowed in the function:
     import plotly
     import statsmodels
 
+
 All imports are already included in the initial code template. You can use any of these libraries to complete the task.
 
 Input Format:
@@ -95,10 +97,21 @@ No specific verbosity is required for the explanation text; provide clear and co
                 }
             ]
         )
-        print(message.content[0].text)
+
         return message.content[0].text.split("```python")[1].split("```")[0]
 
     def __openai_api_call(self, prompt):
+
+        def calculate_chatgpt_cost(total_tokens, rate_per_token):
+            """
+            Calculate the total cost of a ChatGPT API call in USD.
+
+            :param total_tokens: Total number of tokens used in the API call (completion + prompt).
+            :param rate_per_token: Cost per token in USD.
+            :return: Total cost in USD.
+            """
+            total_cost = total_tokens * rate_per_token
+            return total_cost
         
         completion = self.__client.chat.completions.create(
             model="gpt-4o",
@@ -107,7 +120,7 @@ No specific verbosity is required for the explanation text; provide clear and co
             ]
         )
 
-        return completion.choices[0].message.content.split("```python")[1].split("```")[0]
+        return completion.choices[0].message.content.split("```python")[1].split("```")[0], calculate_chatgpt_cost(completion.usage.total_tokens, 0.00000015)
     
     
     def __fetch_executale_code(self, prompt):
@@ -123,12 +136,17 @@ No specific verbosity is required for the explanation text; provide clear and co
 
             try:
 
+                
+
                 if os.getenv('ANTHROPIC_API_KEY') is not None:
                     return self.__antrohic_api_call(prompt)
                 
-                if os.getenv('OPENAI_API_KEY') is not None:
+                elif os.getenv('OPENAI_API_KEY') is not None:
                     return self.__openai_api_call(prompt)
-                    
+                
+                else:
+                    raise ValueError("No valid API key found.")
+
             
             except InternalServerError as e:
                 
@@ -144,12 +162,18 @@ No specific verbosity is required for the explanation text; provide clear and co
     def __process_question(self, question : str):
 
         prompt = self.__load_prompt(question)
-        exec_code = self.__fetch_executale_code(prompt)
+        exec_code, usd_cost = self.__fetch_executale_code(prompt)
         local_vars = {}
 
-        exec(exec_code, {}, local_vars)
 
-        return local_vars.get('requested_function', lambda df: None)(self.__df), exec_code
+        exec(exec_code, {}, local_vars)
+        tracemalloc.start()
+        res = local_vars.get('requested_function', lambda df: None)(self.__df)
+        _, peak_memory = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+
+        return res, exec_code, peak_memory, usd_cost
     
     def make_alive(self):
 
@@ -159,7 +183,7 @@ No specific verbosity is required for the explanation text; provide clear and co
                 return self.__process_question(question)
             
             except Exception as e:
-                return None, f"An error occurred: {e}"
+                return None, f"An error occurred: {e}", 0, 0
         
 
         with gr.Blocks(fill_height=True) as demo:
@@ -177,17 +201,19 @@ No specific verbosity is required for the explanation text; provide clear and co
                 with gr.Accordion("Generated Code", open=False):
                     code_output = gr.Code(label="Generated Code", language="python")
 
-                status_output = gr.Textbox(label="Status", interactive=False)
+                with gr.Accordion("Processing details", open=False):
+                    peak_memory_output = gr.Textbox(label="Peak Memory Usage (MB)", interactive=False)
+                    usd_cost_output = gr.Textbox(label="Cost (USD)", interactive=False)
+                    elapsed_time_output = gr.Textbox(label="Elapsed Time (seconds)", interactive=False)
+                
 
                 def handle_question_with_timing(question):
                     start_time = time.time()
-                    result, code = handle_question(question)
+                    result, code, peak_memory, usd_cost = handle_question(question)
                     end_time = time.time()
                     elapsed_time = end_time - start_time
-                    status = "Request successful" if result is not None else "Request failed"
-                    status += f" (Time taken: {elapsed_time:.2f} seconds)"
-                    return result, code, status
+                    return result, code, peak_memory, usd_cost, elapsed_time
 
-                question_input.submit(fn=handle_question_with_timing, inputs=question_input, outputs=[result_output, code_output, status_output])
+                question_input.submit(fn=handle_question_with_timing, inputs=question_input, outputs=[result_output, code_output, peak_memory_output, usd_cost_output, elapsed_time_output])
 
         demo.launch()
