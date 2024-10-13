@@ -1,9 +1,6 @@
-
-
 from anthropic import InternalServerError
 from dotenv import load_dotenv
 from openai import OpenAI
-import streamlit as st
 import anthropic
 import time 
 import os
@@ -13,6 +10,7 @@ import seaborn
 import pandas
 import plotly
 import statsmodels
+import gradio as gr
 
 if os.getenv('ANTHROPIC_API_KEY') is None:
     load_dotenv()
@@ -21,58 +19,62 @@ class Assistent:
 
     def __init__(self):
 
+        self.__df = pandas.read_csv("./data/SWE.csv")
+
         if os.getenv('ANTHROPIC_API_KEY') is not None:
             self.__client = anthropic.Anthropic()
 
-        elif os.getenv('OPENAI_API_KEY') is not None:
+        if os.getenv('OPENAI_API_KEY') is not None:
             self.__client = OpenAI()
 
 
     def __load_prompt(self, question : str ):
         return f"""
-                    You will receive the first 5 records of a pandas DataFrame along with the columns and their data types. Your task is to:
+You will receive the first 5 records of a pandas DataFrame along with the columns and their data types. Your task is to:
 
-                    Analyze these records to understand the structure, content, and data types within the DataFrame.
+Analyze these records to understand the structure, content, and data types within the DataFrame.
 
-                    Respond to a follow-up question, which may involve statistical summaries, data transformations, or visualizations.
+Respond to a follow-up question, which may involve statistical summaries, data transformations, or visualizations.
 
-                    Provide:
+Provide:
 
-                    An executable Python function using pandas and seaborn that performs the requested analysis or visualization. The function should prioritize accuracy and correct handling of the data.
-                    Implement appropriate error handling to ensure the function's robustness, while balancing simplicity and thorough checks.
-                    If no specific chart type is requested, determine and suggest the most suitable visualization based on the data, analysis, and context.
-                    Apply seaborn styling options for a polished and well-formatted chart unless otherwise specified.
-                    Ensure the function returns a Plotly figure object so it can be displayed with Streamlit.
-                    Make the charts interactable using Plotly for enhanced user interaction.
-                    
-                    Important: Include the necessary import statements within the function to ensure it runs independently.
-                    Important: The function should always expect a DataFrame as input and return a Plotly figure object.
+An executable Python function using pandas and seaborn that performs the requested analysis or visualization. The function should prioritize accuracy and correct handling of the data.
+Implement appropriate error handling to ensure the function's robustness, while balancing simplicity and thorough checks.
+If no specific chart type is requested, determine and suggest the most suitable visualization based on the data, analysis, and context.
+Apply seaborn styling options for a polished and well-formatted chart unless otherwise specified.
+Ensure the function returns a Plotly figure object so it can be displayed with Streamlit.
+Make the charts interactable using Plotly for enhanced user interaction.
 
-                    Return your response in the following format and with the same function name:
+Important: Include the necessary import statements within the function to ensure it runs independently.
+Important: The function should always expect a DataFrame as input and return a Plotly figure object.
+Important: I want the fig to be in dark mode.
 
-                    def requested_function(df):
-                        # Your code here
-                        return fig
+Return your response in the following format and with the same function name:
 
-                    These are the only imports allowed in the function:
-                        import matplotlib
-                        import seaborn
-                        import pandas
-                        import plotly
-                        import statsmodels
+def requested_function(df):
+    # Your code here
+    return fig
 
-                    All imports are already included in the initial code template. You can use any of these libraries to complete the task.
+These are the only imports allowed in the function:
+    import matplotlib
+    import seaborn
+    import pandas
+    import plotly
+    import statsmodels
 
-                    Input Format:
-                    User Question : {question}
-                    First 5 Rows of DataFrame: {self.__df.head().to_dict(orient='records')}
-                    Columns and Data Types: : {self.__df.dtypes.to_dict()}
-                    The priority is to ensure the accuracy of the analysis, with a balanced approach to error-checking and code simplicity.
+All imports are already included in the initial code template. You can use any of these libraries to complete the task.
 
-                    No specific verbosity is required for the explanation text; provide clear and concise context as needed.
+Input Format:
+User Question : {question}
+First 5 Rows of DataFrame: {self.__df.head().to_dict(orient='records')}
+Columns and Data Types: : {self.__df.dtypes.to_dict()}
+The priority is to ensure the accuracy of the analysis, with a balanced approach to error-checking and code simplicity.
+
+No specific verbosity is required for the explanation text; provide clear and concise context as needed.
                 """
     
     def __antrohic_api_call(self, prompt):
+        
         message = self.__client.messages.create(
             model="claude-3-opus-20240229",
             max_tokens=1000,
@@ -103,7 +105,8 @@ class Assistent:
         )
 
         return completion.choices[0].message.content.split("```python")[1].split("```")[0]
-
+    
+    
     def __fetch_executale_code(self, prompt):
 
         # Retry logic with exponential backoff
@@ -128,11 +131,11 @@ class Assistent:
                 
                 if attempt < max_retries - 1:
                     sleep_time = backoff_factor ** attempt
-                    st.warning(f"Server overloaded, retrying in {sleep_time} seconds...")
+                    print(f"Server overloaded, retrying in {sleep_time} seconds...")
                     time.sleep(sleep_time)
 
                 else:
-                    st.error("Failed to fetch executable code after multiple attempts.")
+                    print("Failed to fetch executable code after multiple attempts.")
                     raise e
     
     def __process_question(self, question : str):
@@ -142,70 +145,46 @@ class Assistent:
         local_vars = {}
 
         exec(exec_code, {}, local_vars)
-
+        print(exec_code)
         return local_vars.get('requested_function', lambda df: None)(self.__df), exec_code
     
     def make_alive(self):
 
-        hide_streamlit_style = """
-                    <style>
-                        /* Hide the Streamlit header and menu */
-                        header {visibility: hidden;}
-                        /* Optionally, hide the footer */
-                        .streamlit-footer {display: none;}
-                        /* Hide your specific div class, replace class name with the one you identified */
-                        .st-emotion-cache-uf99v8 {display: none;}
-                    </style>
-                    """
+        def handle_question(question):
 
-        st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+            try:
+                return self.__process_question(question)
+            
+            except Exception as e:
+                return None, f"An error occurred: {e}"
+        
 
-        uploaded_file = st.sidebar.file_uploader("Upload a CSV file", type=["csv"])
+        with gr.Blocks(fill_height=True) as demo:
 
-        if uploaded_file is not None:
+            with gr.Group():
 
-            self.__df = pandas.read_csv(uploaded_file)
+                with gr.Accordion("Columns and Data Types", open=False):
+                    gr.JSON(value=self.__df.dtypes.apply(lambda x: x.name).to_dict(), label="Columns and Data Types")
 
-            # Automatically open the sidebar
-            st.sidebar.markdown("## Columns and Data Types:")
-            st.sidebar.write(self.__df.dtypes)
+                with gr.Row():
+                    question_input = gr.Textbox(label="Question", placeholder="Ask a question about the dataset", lines=1)
+                    
+                result_output = gr.Plot(label="Result")
 
-            # Streamlit chat interface
-            if 'messages' not in st.session_state:
-                st.session_state['messages'] = []
+                with gr.Accordion("Generated Code", open=False):
+                    code_output = gr.Code(label="Generated Code", language="python")
 
-            st.title("Data Analysis Assistant")
+                status_output = gr.Textbox(label="Status", interactive=False)
 
-            # Input box for user to type their question
-            user_input = st.text_input("Ask a question about the dataset:", key="user_input")
-
-            if st.button("Send", disabled=st.session_state.get('processing', False), key="submit_button"):
-
-                if user_input:
-
-                    st.session_state['processing'] = True
-
+                def handle_question_with_timing(question):
                     start_time = time.time()
+                    result, code = handle_question(question)
+                    end_time = time.time()
+                    elapsed_time = end_time - start_time
+                    status = "Request successful" if result is not None else "Request failed"
+                    status += f" (Time taken: {elapsed_time:.2f} seconds)"
+                    return result, code, status
 
-                    with st.spinner('Processing your request...'):
-                        
-                        try:
+                question_input.submit(fn=handle_question_with_timing, inputs=question_input, outputs=[result_output, code_output, status_output])
 
-                            result, func = self.__process_question(user_input)
-
-                            end_time = time.time()
-                            processing_time = end_time - start_time
-                            st.success(f"Request processed in {processing_time:.2f} seconds")
-                            
-                            with st.expander("Code used to generate the result"):
-                                st.code(func, language='python')
-
-
-                            st.plotly_chart(result)
-                            st.session_state['messages'].append({"role": "user", "content": user_input})
-                            st.session_state['messages'].append({"role": "assistant", "content": func})
-                            
-                        except Exception as e:
-                            st.error(f"An error occurred: {e}")
-                        
-                        st.session_state['processing'] = False
+        demo.launch()
