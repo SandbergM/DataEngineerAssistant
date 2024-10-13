@@ -19,7 +19,7 @@ class Assistent:
 
     def __init__(self):
 
-        self.__df = pandas.read_csv("./data/SWE.csv")
+        self.__df = pandas.read_csv("./data/Electric_Vehicle_Population_Data.csv")
 
         if os.getenv('ANTHROPIC_API_KEY') is not None:
             self.__client = anthropic.Anthropic()
@@ -48,12 +48,15 @@ Make the charts interactable using Plotly for enhanced user interaction.
 Important: Include the necessary import statements within the function to ensure it runs independently.
 Important: The function should always expect a DataFrame as input and return a Plotly figure object.
 Important: I want the fig to be in dark mode.
+Important: the function should be named requested_function.
 
 Return your response in the following format and with the same function name:
 
+```python
 def requested_function(df):
     # Your code here
     return fig
+```
 
 These are the only imports allowed in the function:
     import matplotlib
@@ -92,7 +95,7 @@ No specific verbosity is required for the explanation text; provide clear and co
                 }
             ]
         )
-
+        print(message.content[0].text)
         return message.content[0].text.split("```python")[1].split("```")[0]
 
     def __openai_api_call(self, prompt):
@@ -145,7 +148,7 @@ No specific verbosity is required for the explanation text; provide clear and co
         local_vars = {}
 
         exec(exec_code, {}, local_vars)
-        print(exec_code)
+
         return local_vars.get('requested_function', lambda df: None)(self.__df), exec_code
     
     def make_alive(self):
