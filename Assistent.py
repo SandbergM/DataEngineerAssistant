@@ -14,7 +14,7 @@ class Assistent:
 
     def __init__(self):
 
-        self.__df = pd.read_csv("./data/Crime_Data_from_2020_to_Present.csv")
+        self.__df = pd.DataFrame()
         self.__css = """
         #chart_row {
             height: 75vh!important;
@@ -87,7 +87,20 @@ class Assistent:
                     submit_button = gr.Button("Submit")
 
                 with gr.Column(scale = 1, elem_id="data_types_row"):
-                    gr.JSON(value=self.__df.dtypes.apply(lambda x: x.name).to_dict(), label="Columns and Data Types", elem_id="data_types")
+                    file_upload = gr.File(label="Upload a CSV file")
+                    data_types_output = gr.JSON(label="Columns and Data Types", elem_id="data_types")
+
+                    def update_data_types(file):
+                        if file is not None:
+                            self.__df = pd.read_csv(file.name)
+                            return self.__df.dtypes.apply(lambda x: x.name).to_dict()
+                        return {}
+
+                    file_upload.change(
+                        update_data_types, 
+                        inputs=file_upload, 
+                        outputs=data_types_output
+                    )
 
             with gr.Row():
                 cost_output = gr.Textbox(label="Cost", interactive=False)
