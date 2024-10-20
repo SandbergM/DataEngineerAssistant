@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>{{ app_name }}</title>
+    <link rel="stylesheet" type="text/css" href="/static/css/styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="row" id="app_header">
+            <div id="mid_header">
+                <h1>{{ app_name }}</h1>
+            </div>
+            <div id="right_header">
+                <h2>RIGHT</h2>
+            </div>
+        </div>
+        <div id="app_outputs">
+            <div id="graph_output"></div>
+            <div id="columns_output"></div>
+        </div>
+        <div id="app_inputs">
+
+        </div>
+    </div>
+</body>
+
+</html>
+
+<style>
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    .container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding-top: 5vh;
+        padding-bottom: 5vh;
+        height: 100vh;
+        width: 100vw;
+    }
+
+    .row {
+        display: flex;
+        flex-direction: row;
+    }
+
+    .col {
+        display: flex;
+        flex-direction: column;
+    }
+
+    #app_header {
+        background-color: #f1f1f1;
+        padding: 10px;
+        text-align: center;
+        background-color: #8d8d8d;
+        width: 80%;
+        height: 10%;
+    }
+
+    #left_header {
+        width: 20%;
+        height: 100%;
+        background-color: #f1f1f1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    #mid_header {
+        width: 60%;
+        height: 100%;
+        background-color: #f1f1f1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    #right_header {
+        width: 20%;
+        height: 100%;
+        background-color: #f1f1f1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    #app_outputs {
+        width: 80%;
+        height: 80%;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    #graph_output {
+        width: 70%;
+        height: 100%;
+        background-color: #4e18c1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    #columns_output {
+        width: 30%;
+        height: 100%;
+        background-color: #d92222;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    #app_inputs {
+        width: 80%;
+        height: 10%;
+        background-color: #f6ff00;
+    }
+</style>
