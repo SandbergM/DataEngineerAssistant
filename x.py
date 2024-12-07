@@ -1,70 +1,52 @@
-def read_data(file_name):
-    with open(f'{file_name}.txt') as f:
-        return [list(x) for x in f.read().split("\n")]
-
+from itertools import product
 import time
 
-data = read_data("data")
 
-def run_this_stupid_fucking_puzzle(data):
+def read_data(file_name):
 
-    steps = {   
-        "^" : (-1, 0),
-        ">" : (0, 1),
-        "v" : (1, 0),
-        "<" : (0, -1)
-    }
+    with open(f"{file_name}.txt", 'r') as file:
+        lines = file.read().split('\n')
+        result = []
+        for line in lines:
+            if line:
+                first_value, values = line.split(': ')
+                values_list = list(map(int, values.split()))
+                result.append((int(first_value), values_list))
+        return result
 
-    directions = {
-        "^" : ">",
-        ">" : "v",
-        "v" : "<",
-        "<" : "^"
-    }
+data = read_data('data')
+operators = ['+', '*', "||"]
 
-    __idx = max([idx if "^" in data[idx] else 0 for idx in range(len(data))])
-    __jdx = data[__idx].index("^")
+ans = 0
 
-    direction = data[__idx][__jdx]
+start = time.time()
 
-    ans = 0
+for idx, tup in enumerate(data):
+    res = tup[0]
+    nums = tup[1]
 
-    for i in range(len(data)):
+    for ops in product(operators, repeat=len(nums) - 1):
 
-        for j in range(len(data[i])):
+        result = nums[0]
 
-            data_copy = read_data("data")
+        for num, op in zip(nums[1:], ops):
 
-            _direction = direction
-            data_copy[i][j] = "O"
+            if op == '+':
+                result += num
 
-            idx = __idx
-            jdx = __jdx
+            elif op == '*':
+                result *= num
+                
+            elif op == "||":
+                result = int(f"{result}{num}")
 
-            while True:
+            if result > res:
+                break
 
-                _i, _j = idx, jdx
+        if result == res:
+            ans += result
+            break
 
-                idx += steps[_direction][0]
-                jdx += steps[_direction][1]
-
-                if idx < 0 or idx >= len(data_copy) or jdx < 0 or jdx >= len(data_copy[idx]):
-                    break
-
-                if data_copy[idx][jdx] in ["#", "O"]:
-                    _direction = directions[_direction]
-                    idx, jdx = _i, _j
-                    continue
-
-                if data_copy[idx][jdx] == _direction:
-                    ans += 1
-                    break
-
-                data_copy[idx][jdx] = _direction
-
-    return ans
-    
-start_time = time.time()
-print(run_this_stupid_fucking_puzzle(data))
-end_time = time.time()
-print(f"Execution time: {(end_time - start_time) * 1000:.2f} ms")
+end = time.time()
+print(ans)
+print(f"Time taken: {(end - start) * 1000} ms")
